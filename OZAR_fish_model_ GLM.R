@@ -2,7 +2,8 @@
 ####################### By: Jeremy Brady      ###############################
 ####################### Date: 09/20/2024      ###############################
 
-install.packages("mgcv")
+install.packages("mvgam") 
+install.packages("gratia")
 ###################### load libraries #######################################
 library(tidyr)
 library(dplyr)
@@ -16,6 +17,8 @@ library(ggplot2)
 library(corrplot)
 library(corrr)
 library(mgcv)
+library(mvgam)
+library(gratia)
 
 ############################# load data; be sure to change directory ###########
 fish_count <- read.csv("OZAR_fish_data.csv")
@@ -26,8 +29,6 @@ reproductive <- c()
 
 locationid <- append(locationid, unique(fish_count$LocationID))
 reproductive <- append(reproductive, unique(fish_count$ReproductiveClassification))
-
-
 
 
 
@@ -54,7 +55,7 @@ mainstem_reproductive_data <- fish_count %>%
   filter(LocationID %in% c(locationid[1], locationid[2], locationid[3], locationid[6], locationid[16], locationid[17]))
 
 mainstem_reproductive_data <- mainstem_reproductive_data %>%
-  group_by(Year, LocationID, ReproductiveClassification) %>%
+  group_by(Year, LocationID, ReproductiveClassification, ScientificName) %>%
   summarize(
     Total = sum(NumObs, na.rm = TRUE),  # Summarize NumObs
     annual_mean = first(annual_mean),   # Assuming annual_mean is constant per group
@@ -67,11 +68,136 @@ mainstem_reproductive_data <- mainstem_reproductive_data %>%
     .groups = "drop"                   # Ungroup the result
   )
 
-mainstem_litho_data <- mainstem_reproductive_data %>%
-  filter(ReproductiveClassification == "Lithophilic spawner")
+#mainstem_litho_data <- mainstem_reproductive_data %>%
+  #(ReproductiveClassification == "Lithophilic spawner")
 
-mainstem_non_litho_data <- mainstem_reproductive_data %>%
-  filter(ReproductiveClassification == "Non-lithophilic spawner")
+#mainstem_non_litho_data <- mainstem_reproductive_data %>%
+  #filter(ReproductiveClassification == "Non-lithophilic spawner")
+
+
+series_data <- mainstem_reproductive_data %>%
+  mutate(
+    series = as.factor(ScientificName)
+  ) 
+
+#top_15 <- series_data %>%
+ # count(series, sort = TRUE) %>%
+  #head(15) %>%
+  #pull(series)
+  
+#top_15_data <- series_data %>%
+  #filter(series %in% top_15)
+
+top_15_data <- series_data %>%
+  dplyr::select(-LocationID) %>%
+  group_by(Year, series) %>%
+  summarise(Total = sum(Total), .groups = "drop" ) %>%
+  group_by(Year) %>%
+  mutate(
+    Rel_Total = sum(Total)) %>%
+  ungroup() %>%
+  mutate(Rel_abund =
+           Total /Rel_Total,
+         time = as.numeric(factor(Year, levels = sort(unique(Year)))))
+  
+
+
+
+plot_mvgam_series(data = top_15_data, y = 'Total', series = 'all')
+
+top_15_data_location <- series_data %>%
+  group_by(Year, series, LocationID) %>%
+  mutate(Total = sum(Total)) %>%
+  ungroup() %>%
+  group_by(Year) %>%
+  mutate(
+    Rel_Total = sum(Total)) %>%
+  ungroup() %>%
+  mutate(Rel_abund =
+           Total /Rel_Total,
+         time = as.numeric(factor(Year, levels = sort(unique(Year)))))
+
+top_15_data_location %>% 
+  dplyr::filter(series == 'Campostoma') %>%
+  ggplot(aes(x = Year, y = Rel_abund)) +
+  geom_point() +
+  geom_smooth(method = "gam", formula = y ~ s(x, k = 10),
+              col = 'darkred', fill = "#A25050") +
+  labs(title = 'Campostoma',
+       y = "relative abundance", 
+       x = 'Year') +
+  facet_wrap(~LocationID)
+  
+  
+  
+  
+  portal_ts %>% 
+  dplyr::filter(species == 'DM') %>%
+  ggplot(aes(x = ndvi_ma12, y = qlogis(rel_abund))) +
+  geom_point() +
+  geom_smooth(method = "gam", formula = y ~ s(x, k = 10),
+              col = 'darkred', fill = "#A25050") +
+  labs(y = NULL, 
+       x = 'NDVI moving average')
+
+# PP
+portal_ts %>% 
+  dplyr::filter(species == 'PP') %>%
+  ggplot(aes(x = mintemp, y = qlogis(rel_abund))) +
+  geom_point() +
+  geom_smooth(method = "gam", formula = y ~ s(x, k = 10),
+              col = 'darkred', fill = "#A25050") +
+  labs(title = 'PP',
+       y = "logit(relative abundance)", 
+       x = 'Minimum temperature') +
+  
+  portal_ts %>% 
+  dplyr::filter(species == 'PP') %>%
+  ggplot(aes(x = ndvi_ma12, y = qlogis(rel_abund))) +
+  geom_point() +
+  geom_smooth(method = "gam", formula = y ~ s(x, k = 10),
+              col = 'darkred', fill = "#A25050") +
+  labs(y = NULL, 
+       x = 'NDVI moving average')
+
+# PB
+portal_ts %>% 
+  dplyr::filter(species == 'PB') %>%
+  ggplot(aes(x = mintemp, y = qlogis(rel_abund))) +
+  geom_point() +
+  geom_smooth(method = "gam", formula = y ~ s(x, k = 10),
+              col = 'darkred', fill = "#A25050") +
+  labs(title = 'PB',
+       y = "logit(relative abundance)",
+       x = 'Minimum temperature') +
+  
+  portal_ts %>% 
+  dplyr::filter(species == 'PB') %>%
+  ggplot(aes(x = ndvi_ma12, y = qlogis(rel_abund))) +
+  geom_point() +
+  geom_smooth(method = "gam", formula = y ~ s(x, k = 10),
+              col = 'darkred', fill = "#A25050") +
+  labs(y = NULL, 
+       x = 'NDVI moving average')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ggplot(litho_data, aes( x = annual_mean, y = Total)) +
   geom_point() +
@@ -149,15 +275,57 @@ print(correlation)
 ############################################### model selection ################
 
 mainstem_litho_data$LocationID <- as.factor(mainstem_litho_data$LocationID)
-mainstem_litho_data$Year <- as.factor(mainstem_litho_data$Year)
+mainstem_litho_data$year_time <- as.factor(mainstem_litho_data$Year)
+mainstem_litho_data$Year <- scale(mainstem_litho_data$Year)
 
-fish_m_1 <- gam(Total ~ s(low_discharge) + s(fall_rate) + s(short_term_change), data = mainstem_litho_data)
+mainstem_litho_data <- mainstem_litho_data %>%
+  group_by(LocationID, year_time) %>%
+  summarize(
+    mean = mean(Total)
+  )
+
+ggplot(mainstem_litho_data, aes(y= Total, x = low_discharge))+
+  geom_point()
+
+ggplot(mainstem_litho_data, aes(y= mean_total, x = fall_rate, color = year_time))+
+  geom_point()
+
+
+
+fish_m_1 <- gam(Total ~
+                  s(low_discharge, k = 5),
+                data = mainstem_litho_data,
+                method ='REML',
+                family = nb())
+
+
+fish_m_2 <- gam(Total ~ Year +
+                  s(low_discharge, k = 18) +
+                  s(fall_rate, k = 15) + 
+                  high_flow_duration +
+                  s(year_time, bs = "re", k = 10),
+                data = mainstem_litho_data,
+                method ='REML',
+                family = nb())
+
+
 summary(fish_m_1)
+summary(fish_m_2)
 
 
-plot(fish_m_1)
+
+coef(fish_m_1)
+
+plot(fish_m_1, residuals = TRUE)
+
+plot(fish_m_2, residuals = TRUE, pch = 1)
+
+
+
 k.check(fish_m_1)
 gam.check(fish_m_1)
+
+
 
 fish_m_2 <- glmer(Total ~ scale(low_discharge) +  scale(low_flow_duration) + scale(short_term_change) + scale(fall_rate) + (1|LocationID) + (1|Year),
                   data = litho_data, family = "poisson")
